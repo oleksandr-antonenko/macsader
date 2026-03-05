@@ -170,7 +170,11 @@ struct MainView: View {
 
     private func setupFKeyMonitor() {
         fKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let noModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty
+            // F-keys may have .function modifier from fn key — strip it
+            let significantModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                .subtracting(.function)
+                .subtracting(.numericPad)
+            let noModifiers = significantModifiers.isEmpty
             switch event.keyCode {
             case 120 where noModifiers: // F2 - Rename
                 activePanel.startRename()
