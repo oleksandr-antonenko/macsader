@@ -308,7 +308,7 @@ struct MainView: View {
             if activePanel.renamingItemId != nil {
                 Task { await activePanel.commitRename() }
             } else if let cursor = activePanel.cursorItem,
-               let item = activePanel.filteredItems.first(where: { $0.id == cursor }) {
+               let item = activePanel.navigableItems.first(where: { $0.id == cursor }) {
                 Task { await activePanel.enterDirectory(item) }
             }
             return .handled
