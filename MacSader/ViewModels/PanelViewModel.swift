@@ -20,9 +20,12 @@ class PanelViewModel: ObservableObject {
     @Published var isQuickSearchActive: Bool = false
     @Published var history: [String] = []
     @Published var historyIndex: Int = -1
+    @Published var renamingItemId: String?
+    @Published var renameText: String = ""
 
     private var showHidden: Bool = false
     private let fs = FileSystemRegistry.shared
+    private var fileWatcher: DirectoryWatcher?
 
     var currentPath: String {
         activeTab?.path ?? NSHomeDirectory()
@@ -39,7 +42,6 @@ class PanelViewModel: ObservableObject {
     var pathComponents: [(name: String, path: String)] {
         let path = currentPath
         var components: [(String, String)] = []
-        var current = path
 
         if path.contains("://") {
             // Remote path
@@ -91,6 +93,9 @@ class PanelViewModel: ObservableObject {
             if cursorItem == nil, let first = filteredItems.first {
                 cursorItem = first.id
             }
+
+            // Setup file watcher for local directories
+            setupWatcher(for: path)
         } catch {
             self.error = error.localizedDescription
             self.items = []
@@ -98,6 +103,18 @@ class PanelViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    private func setupWatcher(for path: String) {
+        fileWatcher?.stop()
+        guard !path.contains("://") else { return }
+        fileWatcher = DirectoryWatcher(path: path) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.loadDirectory(showHidden: self.showHidden)
+            }
+        }
+        fileWatcher?.start()
     }
 
     private func sortItems(_ items: [FileItem]) -> [FileItem] {
@@ -294,6 +311,105 @@ class PanelViewModel: ObservableObject {
         }
         items = sortItems(items)
         applyQuickSearch()
+    }
+
+    // MARK: - Inline Rename
+
+    func startRename() {
+        guard let cursor = cursorItem,
+              let item = filteredItems.first(where: { $0.id == cursor }),
+              item.name != ".." else { return }
+        renamingItemId = cursor
+        renameText = item.name
+    }
+
+    func commitRename() async {
+        guard let itemId = renamingItemId, !renameText.isEmpty else {
+            cancelRename()
+            return
+        }
+        guard let item = filteredItems.first(where: { $0.id == itemId }) else {
+            cancelRename()
+            return
+        }
+        if renameText != item.name {
+            let provider = fs.provider(for: item.path)
+            do {
+                try await provider.rename(at: item.path, to: renameText)
+                await loadDirectory(showHidden: showHidden)
+                // Move cursor to renamed item
+                let dir = (item.path as NSString).deletingLastPathComponent
+                let newPath = (dir as NSString).appendingPathComponent(renameText)
+                cursorItem = newPath
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+        renamingItemId = nil
+        renameText = ""
+    }
+
+    func cancelRename() {
+        renamingItemId = nil
+        renameText = ""
+    }
+
+    // MARK: - Select by Pattern
+
+    func selectByPattern(_ pattern: String) {
+        let glob = pattern.lowercased()
+        for item in filteredItems {
+            if matchesGlob(item.name.lowercased(), pattern: glob) {
+                selectedItems.insert(item.id)
+            }
+        }
+    }
+
+    func deselectByPattern(_ pattern: String) {
+        let glob = pattern.lowercased()
+        for item in filteredItems {
+            if matchesGlob(item.name.lowercased(), pattern: glob) {
+                selectedItems.remove(item.id)
+            }
+        }
+    }
+
+    private func matchesGlob(_ string: String, pattern: String) -> Bool {
+        let regex = "^" + NSRegularExpression.escapedPattern(for: pattern)
+            .replacingOccurrences(of: "\\*", with: ".*")
+            .replacingOccurrences(of: "\\?", with: ".") + "$"
+        return string.range(of: regex, options: .regularExpression) != nil
+    }
+
+    // MARK: - Page Navigation
+
+    func moveCursorPage(direction: Int, pageSize: Int) {
+        guard !filteredItems.isEmpty else { return }
+        if let current = cursorItem,
+           let index = filteredItems.firstIndex(where: { $0.id == current }) {
+            let newIndex = max(0, min(filteredItems.count - 1, index + (direction * pageSize)))
+            cursorItem = filteredItems[newIndex].id
+        } else {
+            cursorItem = filteredItems.first?.id
+        }
+    }
+
+    func moveCursorToEnd(toTop: Bool) {
+        guard !filteredItems.isEmpty else { return }
+        cursorItem = toTop ? filteredItems.first?.id : filteredItems.last?.id
+    }
+
+    // MARK: - Clipboard
+
+    func copyPathToClipboard() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(currentPath, forType: .string)
+    }
+
+    func copySelectedPathsToClipboard() {
+        let paths = selectedPaths
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(paths.joined(separator: "\n"), forType: .string)
     }
 
     // MARK: - Helpers

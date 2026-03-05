@@ -7,6 +7,34 @@ struct FileRowView: View {
     let showIcons: Bool
     let columnConfig: ColumnConfig
     let fontSize: CGFloat
+    var isRenaming: Bool = false
+    @Binding var renameText: String
+    var onRenameCommit: (() -> Void)?
+    var onRenameCancel: (() -> Void)?
+
+    init(
+        item: FileItem,
+        isSelected: Bool,
+        isCursor: Bool,
+        showIcons: Bool,
+        columnConfig: ColumnConfig,
+        fontSize: CGFloat,
+        isRenaming: Bool = false,
+        renameText: Binding<String> = .constant(""),
+        onRenameCommit: (() -> Void)? = nil,
+        onRenameCancel: (() -> Void)? = nil
+    ) {
+        self.item = item
+        self.isSelected = isSelected
+        self.isCursor = isCursor
+        self.showIcons = showIcons
+        self.columnConfig = columnConfig
+        self.fontSize = fontSize
+        self.isRenaming = isRenaming
+        self._renameText = renameText
+        self.onRenameCommit = onRenameCommit
+        self.onRenameCancel = onRenameCancel
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -19,13 +47,32 @@ struct FileRowView: View {
                         .frame(width: 16, alignment: .center)
                 }
 
-                Text(item.name)
+                if isRenaming {
+                    TextField("", text: $renameText, onCommit: {
+                        onRenameCommit?()
+                    })
+                    .textFieldStyle(.plain)
                     .font(.system(size: fontSize, design: .monospaced))
-                    .foregroundColor(nameColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 1)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .cornerRadius(3)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3)
+                            .strokeBorder(Color.accentColor, lineWidth: 1)
+                    )
+                    .onExitCommand {
+                        onRenameCancel?()
+                    }
+                } else {
+                    Text(item.name)
+                        .font(.system(size: fontSize, design: .monospaced))
+                        .foregroundColor(nameColor)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
 
-                if item.isSymlink {
+                if item.isSymlink && !isRenaming {
                     Image(systemName: "arrow.right")
                         .font(.system(size: 8))
                         .foregroundColor(.secondary.opacity(0.5))
@@ -71,7 +118,7 @@ struct FileRowView: View {
         .frame(height: 22)
         .overlay(
             Group {
-                if isCursor {
+                if isCursor && !isRenaming {
                     RoundedRectangle(cornerRadius: 3)
                         .strokeBorder(AppTheme.rowCursorBorder.opacity(0.5), lineWidth: 1)
                 }

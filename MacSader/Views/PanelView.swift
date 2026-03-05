@@ -15,7 +15,7 @@ struct PanelView: View {
             // Path bar
             PathBarView(viewModel: viewModel, isActive: isActive)
 
-            // Quick search bar (conditional)
+            // Quick search bar
             if viewModel.isQuickSearchActive {
                 QuickSearchBar(viewModel: viewModel)
             }
@@ -29,16 +29,16 @@ struct PanelView: View {
             )
 
             // Status bar
-            StatusBar(viewModel: viewModel)
+            StatusBar(viewModel: viewModel, isActive: isActive)
         }
         .background(AppTheme.panelBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 0)
-                .strokeBorder(
-                    isActive ? AppTheme.panelActiveAccent : Color.clear,
-                    lineWidth: 2
-                )
-        )
+        .overlay(alignment: .top) {
+            if isActive {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 2)
+            }
+        }
     }
 }
 
@@ -63,6 +63,10 @@ struct QuickSearchBar: View {
                 Text("\(viewModel.filteredItems.count)")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.accentColor.opacity(0.15))
+                    .cornerRadius(4)
 
                 Button {
                     viewModel.quickSearchText = ""
@@ -84,30 +88,40 @@ struct QuickSearchBar: View {
 // MARK: - Status Bar
 struct StatusBar: View {
     @ObservedObject var viewModel: PanelViewModel
+    var isActive: Bool = false
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             if viewModel.isLoading {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.7)
             }
 
-            Text("\(viewModel.filteredItems.count) items")
-                .font(.system(size: 11))
+            // Item count
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary.opacity(0.6))
+            Text("\(viewModel.filteredItems.count)")
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(.secondary)
 
             if !viewModel.selectedItems.isEmpty {
-                Text("| \(viewModel.selectedItems.count) selected")
-                    .font(.system(size: 11))
+                Divider().frame(height: 12)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(.accentColor)
+                Text("\(viewModel.selectedItems.count)")
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.accentColor)
 
                 let totalSize = viewModel.filteredItems
                     .filter { viewModel.selectedItems.contains($0.id) }
                     .reduce(Int64(0)) { $0 + $1.size }
                 if totalSize > 0 {
-                    Text("(\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)))")
-                        .font(.system(size: 11))
+                    Text(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
             }
@@ -119,13 +133,17 @@ struct StatusBar: View {
                     .foregroundColor(.red)
                     .font(.system(size: 10))
                 Text(error)
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
                     .foregroundColor(.red)
                     .lineLimit(1)
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Color(nsColor: .windowBackgroundColor).opacity(0.8))
+        .background(
+            isActive
+                ? Color.accentColor.opacity(0.06)
+                : Color(nsColor: .windowBackgroundColor).opacity(0.8)
+        )
     }
 }

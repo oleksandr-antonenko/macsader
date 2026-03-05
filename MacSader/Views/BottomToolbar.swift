@@ -5,46 +5,52 @@ struct BottomToolbar: View {
     let activePanel: PanelViewModel
     let otherPanel: PanelViewModel
 
+    @State private var hoveredButton: String?
+
     var body: some View {
-        HStack(spacing: 1) {
-            toolbarButton("F3 View") {
+        HStack(spacing: 0) {
+            fButton("F2", "Rename", "pencil") {
+                activePanel.startRename()
+            }
+
+            fButton("F3", "View", "eye") {
                 if let item = currentItem, !item.isDirectory {
                     NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
                 }
             }
 
-            toolbarButton("F4 Edit") {
+            fButton("F4", "Edit", "square.and.pencil") {
                 if let item = currentItem, !item.isDirectory {
                     NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
                 }
             }
 
-            toolbarButton("F5 Copy") {
+            fButton("F5", "Copy", "doc.on.doc") {
                 let items = activePanel.selectedOrCursorItems
                 if !items.isEmpty {
                     fileOps.promptCopy(items: items, destination: otherPanel.currentPath)
                 }
             }
 
-            toolbarButton("F6 Move") {
+            fButton("F6", "Move", "arrow.right") {
                 let items = activePanel.selectedOrCursorItems
                 if !items.isEmpty {
                     fileOps.promptMove(items: items, destination: otherPanel.currentPath)
                 }
             }
 
-            toolbarButton("F7 Mkdir") {
+            fButton("F7", "Mkdir", "folder.badge.plus") {
                 fileOps.promptMkdir(currentPath: activePanel.currentPath)
             }
 
-            toolbarButton("F8 Delete") {
+            fButton("F8", "Delete", "trash") {
                 let items = activePanel.selectedOrCursorItems
                 if !items.isEmpty {
                     fileOps.promptDelete(items: items)
                 }
             }
 
-            toolbarButton("F9 Terminal") {
+            fButton("F9", "Term", "terminal") {
                 openTerminal(at: activePanel.currentPath)
             }
         }
@@ -57,23 +63,35 @@ struct BottomToolbar: View {
         return activePanel.filteredItems.first { $0.id == cursor }
     }
 
-    private func toolbarButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: AppTheme.toolbarHeight)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-                .contentShape(Rectangle())
+    private func fButton(_ key: String, _ label: String, _ icon: String, action: @escaping () -> Void) -> some View {
+        let id = key
+        return Button(action: action) {
+            HStack(spacing: 3) {
+                Text(key)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(hoveredButton == id ? .accentColor : .secondary.opacity(0.6))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(hoveredButton == id ? .primary : .secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: AppTheme.toolbarHeight)
+            .background(
+                hoveredButton == id
+                    ? Color.accentColor.opacity(0.1)
+                    : Color(nsColor: .controlBackgroundColor).opacity(0.15)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .overlay(
+        .onHover { isHovered in
+            hoveredButton = isHovered ? id : nil
+        }
+        .overlay(alignment: .trailing) {
             Rectangle()
-                .fill(Color(nsColor: .separatorColor))
-                .frame(width: 1),
-            alignment: .trailing
-        )
+                .fill(Color(nsColor: .separatorColor).opacity(0.5))
+                .frame(width: 1)
+        }
     }
 
     private func openTerminal(at path: String) {
