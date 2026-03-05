@@ -1,0 +1,37 @@
+name: MacSader
+options:
+  bundleIdPrefix: com.macsader
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  minimumXcodeGenVersion: "2.38"
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  MacSader:
+    type: application
+    platform: macOS
+    sources:
+      - MacSader
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macsader.app
+        PRODUCT_NAME: MacSader
+        INFOPLIST_FILE: MacSader/App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MacSader/MacSader.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_HARDENED_RUNTIME: YES
+    entitlements:
+      path: MacSader/MacSader.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.network.client: true
