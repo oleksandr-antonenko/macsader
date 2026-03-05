@@ -90,7 +90,7 @@ class PanelViewModel: ObservableObject {
             self.items = sortItems(filtered)
             applyQuickSearch()
 
-            if cursorItem == nil, let first = filteredItems.first {
+            if cursorItem == nil, let first = navigableItems.first {
                 cursorItem = first.id
             }
 
@@ -242,15 +242,26 @@ class PanelViewModel: ObservableObject {
         selectedItems = all.subtracting(selectedItems)
     }
 
+    /// All navigable items including ".." parent entry
+    var navigableItems: [FileItem] {
+        var result: [FileItem] = []
+        if currentPath != "/" {
+            result.append(FileItem.parentDirectory(for: currentPath))
+        }
+        result.append(contentsOf: filteredItems)
+        return result
+    }
+
     func moveCursor(direction: Int) {
-        guard !filteredItems.isEmpty else { return }
+        let nav = navigableItems
+        guard !nav.isEmpty else { return }
 
         if let current = cursorItem,
-           let index = filteredItems.firstIndex(where: { $0.id == current }) {
-            let newIndex = max(0, min(filteredItems.count - 1, index + direction))
-            cursorItem = filteredItems[newIndex].id
+           let index = nav.firstIndex(where: { $0.id == current }) {
+            let newIndex = max(0, min(nav.count - 1, index + direction))
+            cursorItem = nav[newIndex].id
         } else {
-            cursorItem = filteredItems.first?.id
+            cursorItem = nav.first?.id
         }
     }
 
@@ -384,19 +395,21 @@ class PanelViewModel: ObservableObject {
     // MARK: - Page Navigation
 
     func moveCursorPage(direction: Int, pageSize: Int) {
-        guard !filteredItems.isEmpty else { return }
+        let nav = navigableItems
+        guard !nav.isEmpty else { return }
         if let current = cursorItem,
-           let index = filteredItems.firstIndex(where: { $0.id == current }) {
-            let newIndex = max(0, min(filteredItems.count - 1, index + (direction * pageSize)))
-            cursorItem = filteredItems[newIndex].id
+           let index = nav.firstIndex(where: { $0.id == current }) {
+            let newIndex = max(0, min(nav.count - 1, index + (direction * pageSize)))
+            cursorItem = nav[newIndex].id
         } else {
-            cursorItem = filteredItems.first?.id
+            cursorItem = nav.first?.id
         }
     }
 
     func moveCursorToEnd(toTop: Bool) {
-        guard !filteredItems.isEmpty else { return }
-        cursorItem = toTop ? filteredItems.first?.id : filteredItems.last?.id
+        let nav = navigableItems
+        guard !nav.isEmpty else { return }
+        cursorItem = toTop ? nav.first?.id : nav.last?.id
     }
 
     // MARK: - Clipboard
