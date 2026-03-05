@@ -9,6 +9,7 @@ struct MainView: View {
     @State private var panelSplitRatio: CGFloat = 0.5
     @State private var isDraggingDivider = false
     @State private var fKeyMonitor: Any?
+    @State private var clickMonitor: Any?
     @State private var showSelectPattern = false
     @State private var showDeselectPattern = false
     @State private var selectPattern = ""
@@ -25,7 +26,6 @@ struct MainView: View {
                         otherPanelPath: rightPanel.currentPath
                     )
                     .frame(width: leftPanelWidth(in: geometry))
-                    .onTapGesture { appState.activePanel = .left }
 
                     // Divider
                     Rectangle()
@@ -50,7 +50,6 @@ struct MainView: View {
                         otherPanelPath: leftPanel.currentPath
                     )
                     .frame(width: rightPanelWidth(in: geometry))
-                    .onTapGesture { appState.activePanel = .right }
 
                     // Quick Look preview (optional)
                     if appState.showPreview {
@@ -101,11 +100,11 @@ struct MainView: View {
                 await rightPanel.loadDirectory(showHidden: appState.showHiddenFiles)
             }
             setupFKeyMonitor()
+            setupClickMonitor()
         }
         .onDisappear {
-            if let monitor = fKeyMonitor {
-                NSEvent.removeMonitor(monitor)
-            }
+            if let monitor = fKeyMonitor { NSEvent.removeMonitor(monitor) }
+            if let monitor = clickMonitor { NSEvent.removeMonitor(monitor) }
         }
         .onChange(of: appState.showHiddenFiles) { _, newValue in
             Task {
@@ -144,6 +143,27 @@ struct MainView: View {
     private var previewItem: FileItem? {
         guard let cursor = activePanel.cursorItem else { return nil }
         return activePanel.filteredItems.first { $0.id == cursor }
+    }
+
+    // MARK: - Click Monitor (panel focus detection)
+
+    private func setupClickMonitor() {
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            guard let window = event.window,
+                  let contentView = window.contentView else { return event }
+
+            let locationInWindow = event.locationInWindow
+            let locationInContent = contentView.convert(locationInWindow, from: nil)
+
+            // Determine if click is in left or right half of the window
+            let midpoint = contentView.bounds.width * panelSplitRatio
+            let newSide: PanelSide = locationInContent.x < midpoint ? .left : .right
+
+            if appState.activePanel != newSide {
+                appState.activePanel = newSide
+            }
+            return event
+        }
     }
 
     // MARK: - F-Key Monitor
