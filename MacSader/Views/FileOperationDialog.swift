@@ -77,47 +77,63 @@ struct FileOperationDialog: View {
     /// Resolves user input to an absolute path.
     /// - "./newname.txt" -> currentDir/newname.txt
     /// - "../foo"        -> parentDir/foo
-    /// - "newname.txt"   -> treat as otherPanel/newname.txt (or currentDir/newname.txt for single-item)
+    /// - "newname.txt"   -> currentDir/newname.txt (for single item rename-copy)
     /// - "/abs/path"     -> as-is
     private func resolveDestination(_ input: String, forSources sources: [String]) -> (directory: String, newName: String?) {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let currentDir = activePanel.currentPath
 
-        // Resolve relative path
-        var resolved: String
+        // Absolute path or remote URL
         if trimmed.hasPrefix("/") || trimmed.contains("://") {
-            resolved = trimmed
-        } else if trimmed.hasPrefix("./") || trimmed.hasPrefix("../") {
-            resolved = (currentDir as NSString).appendingPathComponent(trimmed)
-            // Normalize path
-            resolved = (resolved as NSString).standardizingPath
-        } else {
-            // Bare name — resolve relative to the input default (other panel path)
-            // Check if user cleared the other panel path and typed just a name
-            if !trimmed.contains("/") {
-                // Just a filename — copy to current dir with new name
-                return (currentDir, trimmed)
+            return resolveAbsolutePath(trimmed)
+        }
+
+        // Relative path starting with ./ or ../
+        if trimmed.hasPrefix("./") {
+            let name = String(trimmed.dropFirst(2))
+            if name.contains("/") {
+                // Subdirectory path: ./subdir/name
+                let fullPath = (currentDir as NSString).appendingPathComponent(name)
+                return resolveAbsolutePath(fullPath)
             }
-            resolved = trimmed
+            // Simple: ./newname -> copy to current dir with new name
+            return (currentDir, name)
         }
 
-        // Check if destination is an existing directory -> copy into it
+        if trimmed.hasPrefix("../") {
+            let parent = (currentDir as NSString).deletingLastPathComponent
+            let rest = String(trimmed.dropFirst(3))
+            let fullPath = (parent as NSString).appendingPathComponent(rest)
+            return resolveAbsolutePath(fullPath)
+        }
+
+        // Bare name without any slash -> copy to current dir with new name
+        if !trimmed.contains("/") {
+            return (currentDir, trimmed)
+        }
+
+        // Some other relative path — shouldn't normally happen, treat as-is
+        return resolveAbsolutePath(trimmed)
+    }
+
+    private func resolveAbsolutePath(_ path: String) -> (directory: String, newName: String?) {
         var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir), isDir.boolValue {
-            return (resolved, nil)
+
+        // If path is an existing directory, copy into it (keep original name)
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+            return (path, nil)
         }
 
-        // Destination doesn't exist or is a file path -> treat last component as new name
-        let dir = (resolved as NSString).deletingLastPathComponent
-        let name = (resolved as NSString).lastPathComponent
+        // Path is a file or doesn't exist — split into dir + filename
+        let dir = (path as NSString).deletingLastPathComponent
+        let name = (path as NSString).lastPathComponent
 
-        // If dir exists and it's a directory, use it as dest with rename
         if FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue {
             return (dir, name)
         }
 
-        // Fallback: treat the whole thing as directory path
-        return (resolved, nil)
+        // Directory doesn't exist either — return as-is, will get error at copy time
+        return (path, nil)
     }
 
     // MARK: - Dialog properties

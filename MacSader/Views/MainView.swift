@@ -170,6 +170,9 @@ struct MainView: View {
 
     private func setupFKeyMonitor() {
         fKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Don't handle F-keys when a dialog is showing
+            guard !fileOps.isShowingDialog && !appState.showBookmarks else { return event }
+
             // F-keys may have .function modifier from fn key — strip it
             let significantModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 .subtracting(.function)
