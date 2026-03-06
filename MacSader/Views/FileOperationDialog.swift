@@ -30,6 +30,14 @@ struct FileOperationDialog: View {
                 TextField("", text: $fileOps.dialogInput)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13, design: .monospaced))
+
+                // Hint for relative paths
+                if fileOps.dialogType == .copy || fileOps.dialogType == .move {
+                    Text("Use ./ for current folder, or a full path. Include filename to rename.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             if let error = errorMessage {
@@ -63,6 +71,56 @@ struct FileOperationDialog: View {
         .padding(20)
         .frame(width: 480)
     }
+
+    // MARK: - Resolve destination path
+
+    /// Resolves user input to an absolute path.
+    /// - "./newname.txt" -> currentDir/newname.txt
+    /// - "../foo"        -> parentDir/foo
+    /// - "newname.txt"   -> treat as otherPanel/newname.txt (or currentDir/newname.txt for single-item)
+    /// - "/abs/path"     -> as-is
+    private func resolveDestination(_ input: String, forSources sources: [String]) -> (directory: String, newName: String?) {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentDir = activePanel.currentPath
+
+        // Resolve relative path
+        var resolved: String
+        if trimmed.hasPrefix("/") || trimmed.contains("://") {
+            resolved = trimmed
+        } else if trimmed.hasPrefix("./") || trimmed.hasPrefix("../") {
+            resolved = (currentDir as NSString).appendingPathComponent(trimmed)
+            // Normalize path
+            resolved = (resolved as NSString).standardizingPath
+        } else {
+            // Bare name — resolve relative to the input default (other panel path)
+            // Check if user cleared the other panel path and typed just a name
+            if !trimmed.contains("/") {
+                // Just a filename — copy to current dir with new name
+                return (currentDir, trimmed)
+            }
+            resolved = trimmed
+        }
+
+        // Check if destination is an existing directory -> copy into it
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir), isDir.boolValue {
+            return (resolved, nil)
+        }
+
+        // Destination doesn't exist or is a file path -> treat last component as new name
+        let dir = (resolved as NSString).deletingLastPathComponent
+        let name = (resolved as NSString).lastPathComponent
+
+        // If dir exists and it's a directory, use it as dest with rename
+        if FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue {
+            return (dir, name)
+        }
+
+        // Fallback: treat the whole thing as directory path
+        return (resolved, nil)
+    }
+
+    // MARK: - Dialog properties
 
     private var dialogTitle: String {
         switch fileOps.dialogType {
@@ -101,18 +159,40 @@ struct FileOperationDialog: View {
         }
     }
 
+    // MARK: - Execute
+
     private func executeAction() async {
         errorMessage = nil
         do {
             switch fileOps.dialogType {
             case .copy:
                 let sources = activePanel.selectedPaths
-                try await fileOps.executeCopy(sources: sources, destination: fileOps.dialogInput)
+                let (destDir, newName) = resolveDestination(fileOps.dialogInput, forSources: sources)
+                if let newName = newName, sources.count == 1 {
+                    // Copy single file with rename
+                    try await fileOps.executeCopyWithRename(
+                        source: sources[0],
+                        destinationDir: destDir,
+                        newName: newName
+                    )
+                } else {
+                    try await fileOps.executeCopy(sources: sources, destination: destDir)
+                }
+                await activePanel.loadDirectory(showHidden: false)
                 await otherPanel.loadDirectory(showHidden: false)
 
             case .move:
                 let sources = activePanel.selectedPaths
-                try await fileOps.executeMove(sources: sources, destination: fileOps.dialogInput)
+                let (destDir, newName) = resolveDestination(fileOps.dialogInput, forSources: sources)
+                if let newName = newName, sources.count == 1 {
+                    try await fileOps.executeMoveWithRename(
+                        source: sources[0],
+                        destinationDir: destDir,
+                        newName: newName
+                    )
+                } else {
+                    try await fileOps.executeMove(sources: sources, destination: destDir)
+                }
                 await activePanel.loadDirectory(showHidden: false)
                 await otherPanel.loadDirectory(showHidden: false)
 

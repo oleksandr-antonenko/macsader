@@ -62,6 +62,22 @@ class FileOperationViewModel: ObservableObject {
         try await provider.copyItems(from: sources, to: destination)
     }
 
+    func executeCopyWithRename(source: String, destinationDir: String, newName: String) async throws {
+        isProcessing = true
+        progressMessage = "Copying..."
+        defer { isProcessing = false }
+
+        let destPath = (destinationDir as NSString).appendingPathComponent(newName)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: source) else {
+            throw FileSystemError.notFound(source)
+        }
+        if fm.fileExists(atPath: destPath) {
+            throw FileSystemError.alreadyExists(destPath)
+        }
+        try fm.copyItem(atPath: source, toPath: destPath)
+    }
+
     func executeMove(sources: [String], destination: String) async throws {
         isProcessing = true
         progressMessage = "Moving..."
@@ -69,6 +85,22 @@ class FileOperationViewModel: ObservableObject {
 
         let provider = fs.provider(for: sources.first ?? "")
         try await provider.moveItems(from: sources, to: destination)
+    }
+
+    func executeMoveWithRename(source: String, destinationDir: String, newName: String) async throws {
+        isProcessing = true
+        progressMessage = "Moving..."
+        defer { isProcessing = false }
+
+        let destPath = (destinationDir as NSString).appendingPathComponent(newName)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: source) else {
+            throw FileSystemError.notFound(source)
+        }
+        if fm.fileExists(atPath: destPath) {
+            throw FileSystemError.alreadyExists(destPath)
+        }
+        try fm.moveItem(atPath: source, toPath: destPath)
     }
 
     func executeMkdir(at path: String, name: String) async throws {
