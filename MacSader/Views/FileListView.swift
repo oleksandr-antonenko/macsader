@@ -72,12 +72,15 @@ struct FileListView: View {
         .listRowBackground(
             viewModel.cursorItem == ".." ? AppTheme.rowCursorBackground : Color.clear
         )
-        .onTapGesture(count: 2) {
-            Task { await viewModel.goUp() }
-        }
-        .onTapGesture {
-            viewModel.cursorItem = ".."
-        }
+        .gesture(
+            TapGesture(count: 2).onEnded {
+                Task { await viewModel.goUp() }
+            }.exclusively(before:
+                TapGesture(count: 1).onEnded {
+                    viewModel.cursorItem = ".."
+                }
+            )
+        )
     }
 
     // MARK: - File Row
@@ -107,17 +110,20 @@ struct FileListView: View {
         .tag(item.id)
         .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
         .listRowBackground(rowBackground(for: item, index: index))
-        .onTapGesture(count: 2) {
-            Task { await viewModel.enterDirectory(item) }
-        }
-        .onTapGesture {
-            if NSEvent.modifierFlags.contains(.command) {
-                viewModel.toggleSelection(item.id)
-            } else if NSEvent.modifierFlags.contains(.shift) {
-                selectRange(to: item)
-            }
-            viewModel.cursorItem = item.id
-        }
+        .gesture(
+            TapGesture(count: 2).onEnded {
+                Task { await viewModel.enterDirectory(item) }
+            }.exclusively(before:
+                TapGesture(count: 1).onEnded {
+                    if NSEvent.modifierFlags.contains(.command) {
+                        viewModel.toggleSelection(item.id)
+                    } else if NSEvent.modifierFlags.contains(.shift) {
+                        selectRange(to: item)
+                    }
+                    viewModel.cursorItem = item.id
+                }
+            )
+        )
         .contextMenu {
             FileContextMenu(
                 item: item,

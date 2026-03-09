@@ -60,12 +60,12 @@ struct PathBarView: View {
             } else {
                 // Breadcrumb path
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         ForEach(Array(viewModel.pathComponents.enumerated()), id: \.offset) { index, component in
                             if index > 0 {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.secondary.opacity(0.5))
+                                Text("/")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary.opacity(0.4))
                             }
 
                             Button {
@@ -77,6 +77,12 @@ struct PathBarView: View {
                                         index == viewModel.pathComponents.count - 1
                                             ? .primary
                                             : .secondary
+                                    )
+                                    .padding(.horizontal, 2)
+                                    .padding(.vertical, 1)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color.secondary.opacity(0.001))
                                     )
                             }
                             .buttonStyle(.plain)
