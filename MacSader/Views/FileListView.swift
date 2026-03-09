@@ -15,21 +15,18 @@ struct FileListView: View {
             ColumnHeaderView(viewModel: viewModel)
 
             ScrollViewReader { proxy in
-                List(selection: Binding(
-                    get: { viewModel.cursorItem },
-                    set: { viewModel.cursorItem = $0 }
-                )) {
-                    // Parent directory entry
-                    if viewModel.currentPath != "/" {
-                        parentRow
-                    }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        // Parent directory entry
+                        if viewModel.currentPath != "/" {
+                            parentRow
+                        }
 
-                    ForEach(Array(viewModel.filteredItems.enumerated()), id: \.element.id) { index, item in
-                        fileRow(item: item, index: index)
+                        ForEach(Array(viewModel.filteredItems.enumerated()), id: \.element.id) { index, item in
+                            fileRow(item: item, index: index)
+                        }
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
                 .onChange(of: viewModel.cursorItem) { _, newValue in
                     if let id = newValue {
                         withAnimation(.easeInOut(duration: 0.1)) {
@@ -67,31 +64,32 @@ struct FileListView: View {
             isRenaming: false,
             renameText: .constant("")
         )
-        .tag("..")
-        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
-        .listRowBackground(
+        .id("..")
+        .padding(.horizontal, 4)
+        .background(
             viewModel.cursorItem == ".." ? AppTheme.rowCursorBackground : Color.clear
         )
-        .gesture(
-            TapGesture(count: 2).onEnded {
-                Task { await viewModel.goUp() }
-            }.exclusively(before:
-                TapGesture(count: 1).onEnded {
-                    viewModel.cursorItem = ".."
-                }
-            )
-        )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            Task { await viewModel.goUp() }
+        }
+        .onTapGesture {
+            viewModel.selectedItems.removeAll()
+            viewModel.cursorItem = ".."
+        }
     }
 
     // MARK: - File Row
 
     private func fileRow(item: FileItem, index: Int) -> some View {
         let isRenaming = viewModel.renamingItemId == item.id
+        let isSelected = viewModel.selectedItems.contains(item.id)
+        let isCursor = viewModel.cursorItem == item.id
 
         return FileRowView(
             item: item,
-            isSelected: viewModel.selectedItems.contains(item.id),
-            isCursor: viewModel.cursorItem == item.id,
+            isSelected: isSelected,
+            isCursor: isCursor,
             showIcons: appState.showIconsInFileList,
             columnConfig: appState.columnConfig,
             fontSize: appState.fontSize,
@@ -107,32 +105,26 @@ struct FileListView: View {
                 viewModel.cancelRename()
             }
         )
-        .tag(item.id)
-        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
-        .listRowBackground(rowBackground(for: item, index: index))
-        .gesture(
-            TapGesture(count: 2).onEnded {
-                Task { await viewModel.enterDirectory(item) }
-            }.exclusively(before:
-                TapGesture(count: 1).onEnded {
-                    let mods = NSEvent.modifierFlags
-                    if mods.contains(.command) {
-                        // Cmd+click = add/toggle selection
-                        viewModel.toggleSelection(item.id)
-                    } else if mods.contains(.shift) {
-                        // Shift+click = select range from cursor to clicked item
-                        selectRange(to: item)
-                    } else if mods.contains(.option) {
-                        // Alt+click = remove from selection
-                        viewModel.selectedItems.remove(item.id)
-                    } else {
-                        // Plain click = clear selection, set cursor
-                        viewModel.selectedItems.removeAll()
-                    }
-                    viewModel.cursorItem = item.id
-                }
-            )
-        )
+        .id(item.id)
+        .padding(.horizontal, 4)
+        .background(rowBackground(for: item, index: index))
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            Task { await viewModel.enterDirectory(item) }
+        }
+        .onTapGesture {
+            let mods = NSEvent.modifierFlags
+            if mods.contains(.command) {
+                viewModel.toggleSelection(item.id)
+            } else if mods.contains(.shift) {
+                selectRange(to: item)
+            } else if mods.contains(.option) {
+                viewModel.selectedItems.remove(item.id)
+            } else {
+                viewModel.selectedItems.removeAll()
+            }
+            viewModel.cursorItem = item.id
+        }
         .contextMenu {
             FileContextMenu(
                 item: item,
