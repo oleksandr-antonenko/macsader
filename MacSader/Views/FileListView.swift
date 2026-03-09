@@ -115,10 +115,19 @@ struct FileListView: View {
                 Task { await viewModel.enterDirectory(item) }
             }.exclusively(before:
                 TapGesture(count: 1).onEnded {
-                    if NSEvent.modifierFlags.contains(.command) {
+                    let mods = NSEvent.modifierFlags
+                    if mods.contains(.command) {
+                        // Cmd+click = add/toggle selection
                         viewModel.toggleSelection(item.id)
-                    } else if NSEvent.modifierFlags.contains(.shift) {
+                    } else if mods.contains(.shift) {
+                        // Shift+click = select range from cursor to clicked item
                         selectRange(to: item)
+                    } else if mods.contains(.option) {
+                        // Alt+click = remove from selection
+                        viewModel.selectedItems.remove(item.id)
+                    } else {
+                        // Plain click = clear selection, set cursor
+                        viewModel.selectedItems.removeAll()
                     }
                     viewModel.cursorItem = item.id
                 }
