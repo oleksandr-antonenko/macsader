@@ -62,7 +62,7 @@ struct PathBarView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
                         ForEach(Array(viewModel.pathComponents.enumerated()), id: \.offset) { index, component in
-                            if index > 0 {
+                            if index > 1 {
                                 Text("/")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary.opacity(0.4))
